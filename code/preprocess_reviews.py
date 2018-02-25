@@ -60,7 +60,7 @@ def preprocess_review(data, required_rev_len, keep_in_dict=10000):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some important parameters.')
-    parser.add_argument('-r', '--required_rev_length', type=int, default=80,
+    parser.add_argument('-r', '--required_rev_length', type=int, default=200,
                    help='fix the maximum review length')
 
     args = parser.parse_args()

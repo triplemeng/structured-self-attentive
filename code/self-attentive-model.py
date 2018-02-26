@@ -12,7 +12,6 @@ def build_graph(
     hidden_size = 64,
     da = 128,
     r = 30,
-    atten_size = 50,
     nclasses = 2,
     embeddings = None
     ):
@@ -97,6 +96,7 @@ def initialize(working_dir, log_dir):
     print("load dataframe for training...")
     df_train = pd.read_pickle(train_filename)
     df_train = df_train.dropna(axis=0, how='any')
+    df_train = df_train.sample(frac=1, random_state=1024)
     print("df train shape: "+str(df_train.shape))
     print('review len: '+str(len(df_train['review'].iloc[0])))
     rev_length = len(df_train['review'].iloc[0])
@@ -109,9 +109,19 @@ def initialize(working_dir, log_dir):
     return df_train, df_test, emb_matrix, word2index, index2word
 
 if __name__ == '__main__':
-    train_batch_size = 2048
+    parser = argparse.ArgumentParser(description='Paras for building model.')
+    parser.add_argument('-b', '--batch_size', type=int, default=1024,
+                   help='training batch size')
+    parser.add_argument('-e', '--epochs', type=int, default=10,
+                   help='epochs for training')
+    parser.add_argument('-p', '--penalty_weight', type=float,
+default=0.01, help='regularization weight')
+
+    args = parser.parse_args()
+    epochs = args.epochs
+    train_batch_size = args.batch_size 
     resume = False
-    epochs = 1
+    epoch = 1
     nclasses = 2
     working_dir = "../data/aclImdb"
     log_dir = "../logs"
@@ -123,7 +133,7 @@ if __name__ == '__main__':
 
     dense, A = build_graph(inputs, embeddings=emb_matrix, nclasses=nclasses)
 
-    penalty_weight = 0.0
+    penalty_weight = args.penalty_weight 
     r = int(A.shape[1])
     cross_entropy_n = tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=dense)
     penalty_matrix = tf.matmul(A, tf.transpose(A, perm=[0, 2, 1])) - tf.eye(r)
@@ -142,26 +152,25 @@ if __name__ == '__main__':
     summary_op = tf.summary.merge_all()
     on_value = 1
     off_value = 0
+    x_train = np.asarray(df_train['review'].tolist())
+    y_train = df_train['label'].values.tolist()
 
     with tf.Session() as sess:
         train_writer = tf.summary.FileWriter(log_dir, sess.graph)
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
         total_batch = (int)(df_train.values.shape[0]/train_batch_size)
-        for epoch in range(0, 12):
+        for epoch in range(0, epochs):
             avg_cost = 0.0
             print("epoch {}".format(epoch))
             for i in range(total_batch):
-                train_sample = df_train.sample(train_batch_size)
-                batch_data = np.asarray(train_sample['review'].values.tolist()).reshape(train_batch_size, rev_length)
-    #                 print("batch data shape: "+str(batch_data.shape))
-                batch_label = train_sample['label'].tolist()
-                
-                batch_label_formatted = tf.one_hot(indices=batch_label, depth=nclasses, on_value=on_value, off_value=off_value, axis=-1)
+                batch_x = x_train[i*train_batch_size:(i+1)*train_batch_size]
+                batch_y = y_train[i*train_batch_size:(i+1)*train_batch_size]
+                batch_label_formatted = tf.one_hot(indices=batch_y, depth=nclasses, on_value=on_value, off_value=off_value, axis=-1)
             
                 batch_labels = sess.run(batch_label_formatted)
                     
-                feed = {inputs: batch_data, y_: batch_labels}
+                feed = {inputs: batch_x, y_: batch_labels}
                 _, c, summary_in_batch_train = sess.run([optimizer, loss, summary_op], feed_dict=feed)
                 avg_cost += c/total_batch
     #                 train_writer.add_summary(summary_in_batch_train, epoch*total_batch + i)
@@ -185,4 +194,4 @@ if __name__ == '__main__':
             feed = {inputs: batch_x, y_: batch_labels2}
             accu  = sess.run(accuracy, feed_dict=feed)
             avg_accu += 1.0*accu/total_batch2
-            print("avg accuracy: "+str(avg_accu))
+        print("avg accuracy: "+str(avg_accu))

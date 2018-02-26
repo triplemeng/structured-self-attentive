@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     print("preprocess each review...")
     x_train = preprocess_review(train_data, required_rev_length)
-    print(len(x_train[1]))
+    #print(len(x_train[1]))
     x_test = preprocess_review(test_data, required_rev_length)
     y_train = [0]*len(train_neg_data)+[1]*len(train_pos_data)
     y_test = [0]*len(test_neg_data)+[1]*len(test_pos_data)
